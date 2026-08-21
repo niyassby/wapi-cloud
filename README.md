@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/niyassby/wapi-cloud/master/assets/wapi-cloud.svg" alt="wapi-cloud logo" width="120" />
+<img src="https://raw.githubusercontent.com/niyassby/wapi-cloud/master/assets/wapi-cloud.svg" alt="wapi-cloud logo" width="600" />
 
 # wapi-cloud
 
@@ -10,7 +10,6 @@
 [![npm downloads](https://img.shields.io/npm/dm/wapi-cloud.svg?color=25D366)](https://www.npmjs.com/package/wapi-cloud)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Build](https://img.shields.io/github/actions/workflow/status/yourname/wapi-cloud/ci.yml?branch=main)](https://github.com/yourname/wapi-cloud/actions)
 
 [Quick Start](#-quick-start) · [Docs](#-templates-media--account-management) · [Webhooks](#-webhooks) · [Examples](./examples) · [Contributing](./CONTRIBUTING.md)
 
