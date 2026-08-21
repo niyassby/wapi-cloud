@@ -13,45 +13,56 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "LICENSE", "README.md"],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
-  "keywords": ["whatsapp", "whatsapp-cloud-api", "meta", "graph-api", "sdk", "chatbot", "wapi-cloud",
-  "cloud",
-  "api",
-  "whatsapp-cloud",
-  "cloud-api",
-  "whatsapp-business",
-  "whatsapp-business-api",
-  "bot",
-  "whatsapp-bot",
-  "bot-framework",
-  "nodejs",
-  "bot-api",
-  "whatsapp-api",
-  "business-api",
-  "wa-api",
-  "whatsapp-sdk",
-  "meta-api",
-  "node-whatsapp",
-  "chat-api",
-  "messaging",
-  "webhooks",
-  "api-wrapper"
-],
+  "keywords": [
+    "whatsapp",
+    "whatsapp-cloud-api",
+    "meta",
+    "graph-api",
+    "sdk",
+    "chatbot",
+    "wapi-cloud",
+    "cloud",
+    "api",
+    "whatsapp-cloud",
+    "cloud-api",
+    "whatsapp-business",
+    "whatsapp-business-api",
+    "bot",
+    "whatsapp-bot",
+    "bot-framework",
+    "nodejs",
+    "bot-api",
+    "whatsapp-api",
+    "business-api",
+    "wa-api",
+    "whatsapp-sdk",
+    "meta-api",
+    "node-whatsapp",
+    "chat-api",
+    "messaging",
+    "webhooks",
+    "api-wrapper"
+  ],
   "license": "MIT",
-  "author": "Niyasms <>",
+  "author": "Niyassby <https://github.com/niyassby>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk.git"
+    "url": "git+https://github.com/niyassby/wapi-cloud.git"
   },
-  "homepage": "https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk#readme",
+  "homepage": "https://github.com/niyassby/wapi-cloud#readme",
   "bugs": {
-    "url": "https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk/issues"
+    "url": "https://github.com/niyassby/wapi-cloud/issues"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
