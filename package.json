@@ -1,0 +1,64 @@
+{
+  "name": "wapi-cloud",
+  "version": "0.1.0",
+  "description": "A promise-based, fully-typed Node.js wrapper for integrating the WhatsApp Cloud API (Meta Graph API) into your applications.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist", "LICENSE", "README.md"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "keywords": ["whatsapp", "whatsapp-cloud-api", "meta", "graph-api", "sdk", "chatbot", "wapi-cloud",
+  "cloud",
+  "api",
+  "whatsapp-cloud",
+  "cloud-api",
+  "whatsapp-business",
+  "whatsapp-business-api",
+  "bot",
+  "whatsapp-bot",
+  "bot-framework",
+  "nodejs",
+  "bot-api",
+  "whatsapp-api",
+  "business-api",
+  "wa-api",
+  "whatsapp-sdk",
+  "meta-api",
+  "node-whatsapp",
+  "chat-api",
+  "messaging",
+  "webhooks",
+  "api-wrapper"
+],
+  "license": "MIT",
+  "author": "Niyasms <>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk.git"
+  },
+  "homepage": "https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/YOUR_GITHUB_USERNAME/wacloud-sdk/issues"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "tsup": "^8.2.4",
+    "@types/node": "^20.14.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
