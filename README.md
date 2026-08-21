@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/yourname/wapi-cloud/assets/wapi-cloud.svg" alt="wapi-cloud logo" width="120" />
+<img src="https://raw.githubusercontent.com/niyassby/wapi-cloud/master/assets/wapi-cloud.svg" alt="wapi-cloud logo" width="120" />
 
 # wapi-cloud
 
