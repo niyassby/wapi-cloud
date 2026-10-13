@@ -1,11 +1,46 @@
 export interface SendMessageResult {
   messageId: string;
+  /** Recipient's WhatsApp ID. Empty when the message was sent to a BSUID: see `userId`. */
   waId: string;
+  /** Recipient's business-scoped user ID, when Meta returns one. */
+  userId?: string;
+}
+
+/** Options shared by every send method. */
+export interface SendOptions {
+  /** Send from a different phone number than the client default. */
+  phoneNumberId?: string;
+  /** Quote a specific inbound message (sets `context.message_id`). */
+  replyToMessageId?: string;
+  /** Use "group" when `to` is a group ID from the Groups API. */
+  recipientType?: "individual" | "group";
+  /** Opaque string (max 512 chars) echoed back in status webhooks. */
+  bizOpaqueCallbackData?: string;
+}
+
+/** Template send plus Marketing Messages API settings. */
+export interface SendMarketingTemplateOptions extends SendTemplateOptions {
+  /** "STRICT" never falls back to the regular Cloud API when not onboarded. */
+  productPolicy?: "CLOUD_API_FALLBACK" | "STRICT";
+  /** Per-message override of whether read/engagement activity is shared for optimisation. */
+  messageActivitySharing?: boolean;
+}
+
+export interface SendCallPermissionRequestOptions {
+  bodyText: string;
+}
+
+/**
+ * True for business-scoped user IDs such as `US.13491208655302741918`
+ * (or parent BSUIDs like `US.ENT.1349...`). Phone numbers are digits only, so there is no overlap.
+ */
+export function isBsuid(value: string): boolean {
+  return /^[A-Za-z]{2}(\.[A-Za-z0-9_-]+)+$/.test(value);
 }
 
 interface RawSendMessageResponse {
   messaging_product: "whatsapp";
-  contacts: { input: string; wa_id: string }[];
+  contacts: { input?: string; wa_id?: string; user_id?: string }[];
   messages: { id: string }[];
 }
 
@@ -13,6 +48,7 @@ export function toSendMessageResult(raw: RawSendMessageResponse): SendMessageRes
   return {
     messageId: raw.messages?.[0]?.id ?? "",
     waId: raw.contacts?.[0]?.wa_id ?? "",
+    userId: raw.contacts?.[0]?.user_id,
   };
 }
 
@@ -126,6 +162,11 @@ export interface SendFlowOptions {
   bodyText: string;
   footerText?: string;
   flowActionPayload?: { screen: string; data?: Record<string, unknown> };
+  /** "navigate" (default) opens `flowActionPayload.screen`; "data_exchange" calls your Flow endpoint first. */
+  flowAction?: "navigate" | "data_exchange";
+  flowToken?: string;
+  /** Use "draft" to test an unpublished Flow. */
+  mode?: "draft" | "published";
 }
 
 export interface SendProductOptions {

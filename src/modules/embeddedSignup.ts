@@ -89,7 +89,7 @@ export class EmbeddedSignupModule {
    * `whatsapp.embeddedSignup.exchangeCodeForToken(code)`.
    */
   getLoginScript(options: EmbeddedSignupLoginScriptOptions): string {
-    const version = options.graphApiVersion ?? "v21.0";
+    const version = options.graphApiVersion ?? "v25.0";
     const triggerId = options.triggerElementId ?? "wa-embedded-signup-btn";
 
     return `

@@ -3,7 +3,7 @@ import { parse } from "./parser.js";
 import type { WhatsappEvent } from "./types.js";
 
 type EventName = WhatsappEvent["type"];
-type Listener = (event: any) => void;
+type Listener = (event: any) => void | Promise<void>;
 
 export class WebhooksModule {
   private listeners = new Map<EventName, Set<Listener>>();
@@ -38,9 +38,21 @@ export class WebhooksModule {
   /** Dispatches an already-parsed event to any `on()` listeners registered for its type. */
   emit(event: WhatsappEvent): void {
     for (const listener of this.listeners.get(event.type) ?? []) {
-      listener(event);
+      try {
+        const result = listener(event);
+        if (result && typeof (result as Promise<void>).catch === "function") {
+          (result as Promise<void>).catch((err) => this.onListenerError(err, event));
+        }
+      } catch (err) {
+        this.onListenerError(err, event);
+      }
     }
   }
+
+  /** Called when a listener throws or rejects. Defaults to console.error so one bad listener never breaks the others or the 200 ack. */
+  onListenerError: (err: unknown, event: WhatsappEvent) => void = (err, event) => {
+    console.error(`[wapi-cloud] webhook listener for "${event.type}" failed:`, err);
+  };
 
   /**
    * One-line setup for an Express app: registers the GET verification route
@@ -67,9 +79,19 @@ export class WebhooksModule {
     });
 
     app.post(path, (req: any, res: any) => {
-      const rawBody: Buffer = req.body;
+      const rawBody: unknown = req.body;
 
-      if (this.appSecret) {
+      if (!Buffer.isBuffer(rawBody) && typeof rawBody !== "string") {
+        console.error(
+          "[wapi-cloud] handleExpress needs the raw body — mount express.raw({ type: \"application/json\" }) on the webhook path instead of express.json().",
+        );
+        res.sendStatus(400);
+        return;
+      }
+
+      if (!this.appSecret) {
+        console.warn("[wapi-cloud] No appSecret configured — webhook signatures are NOT being verified.");
+      } else {
         const isValid = this.verifySignature({
           payload: rawBody,
           signatureHeader: req.headers["x-hub-signature-256"],
@@ -82,16 +104,16 @@ export class WebhooksModule {
 
       let json: unknown;
       try {
-        json = JSON.parse(rawBody.toString("utf-8"));
+        json = JSON.parse(rawBody.toString());
       } catch {
         res.sendStatus(400);
         return;
       }
 
+      // Ack first so slow or failing listeners never cause Meta to retry (and duplicate) the delivery.
+      res.sendStatus(200);
       const events = parse(json);
       for (const event of events) this.emit(event);
-
-      res.sendStatus(200);
     });
   }
 }

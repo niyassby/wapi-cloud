@@ -1,6 +1,6 @@
 {
   "name": "wapi-cloud",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A promise-based, fully-typed Node.js wrapper for integrating the WhatsApp Cloud API (Meta Graph API) into your applications.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -22,6 +22,8 @@
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run tests/sdk.test.ts tests/modules.test.ts",
+    "test:live": "vitest run tests/live",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "keywords": [
@@ -65,9 +67,10 @@
     "url": "https://github.com/niyassby/wapi-cloud/issues"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
+    "@types/node": "^20.19.43",
     "tsup": "^8.2.4",
-    "@types/node": "^20.14.0"
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=18"

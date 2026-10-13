@@ -1,3 +1,4 @@
+import { WhatsappApiError } from "../http/errors.js";
 import type { HttpClient } from "../http/request.js";
 import type { WhatsappResponse } from "../types/common.js";
 import {
@@ -19,6 +20,10 @@ import {
   type SendProductCarouselOptions,
   type SendCatalogTemplateOptions,
   type SendCarouselTemplateOptions,
+  type SendOptions,
+  type SendMarketingTemplateOptions,
+  type SendCallPermissionRequestOptions,
+  isBsuid,
 } from "../types/messages.js";
 
 export class MessagesModule {
@@ -29,20 +34,28 @@ export class MessagesModule {
 
   private async send(
     payload: Record<string, unknown>,
-    opts?: { phoneNumberId?: string; replyToMessageId?: string },
+    opts?: SendOptions,
+    endpoint: "messages" | "marketing_messages" = "messages",
   ): Promise<WhatsappResponse<SendMessageResult>> {
     const phoneNumberId = opts?.phoneNumberId ?? this.defaultPhoneNumberId;
     const body: Record<string, unknown> = {
       messaging_product: "whatsapp",
       ...payload,
     };
+    // Business-scoped user IDs go in `recipient`, phone numbers / group IDs in `to`.
+    if (typeof body.to === "string" && opts?.recipientType !== "group" && isBsuid(body.to)) {
+      body.recipient = body.to;
+      delete body.to;
+    }
+    if (opts?.recipientType) body.recipient_type = opts.recipientType;
+    if (opts?.bizOpaqueCallbackData) body.biz_opaque_callback_data = opts.bizOpaqueCallbackData;
     if (opts?.replyToMessageId) {
       body.context = { message_id: opts.replyToMessageId };
     }
 
     const res = await this.http.request<Parameters<typeof toSendMessageResult>[0]>({
       method: "POST",
-      path: `/${phoneNumberId}/messages`,
+      path: `/${phoneNumberId}/${endpoint}`,
       body,
     });
 
@@ -59,7 +72,48 @@ export class MessagesModule {
     };
   }
 
-  sendText(to: string, options: TextMessageOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  /**
+   * Sends a marketing template through the Marketing Messages API
+   * (`POST /{phone}/marketing_messages`). Only approved MARKETING templates are accepted.
+   * `productPolicy: "STRICT"` stops Meta falling back to the regular Cloud API if your
+   * number is not onboarded; `messageActivitySharing` overrides the WABA default.
+   */
+  sendMarketingTemplate(to: string, options: SendMarketingTemplateOptions, opts?: SendOptions) {
+    const { productPolicy, messageActivitySharing, ...template } = options;
+    return this.send(
+      {
+        to,
+        type: "template",
+        template: {
+          name: template.name,
+          language: { code: template.language },
+          components: template.components,
+        },
+        product_policy: productPolicy,
+        message_activity_sharing: messageActivitySharing,
+      },
+      opts,
+      "marketing_messages",
+    );
+  }
+
+  /** Asks the user for permission to call them (interactive `call_permission_request`). */
+  sendCallPermissionRequest(to: string, options: SendCallPermissionRequestOptions, opts?: SendOptions) {
+    return this.send(
+      {
+        to,
+        type: "interactive",
+        interactive: {
+          type: "call_permission_request",
+          body: { text: options.bodyText },
+          action: { name: "call_permission_request" },
+        },
+      },
+      opts,
+    );
+  }
+
+  sendText(to: string, options: TextMessageOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -70,7 +124,7 @@ export class MessagesModule {
     );
   }
 
-  sendTemplate(to: string, options: SendTemplateOptions, opts?: { phoneNumberId?: string }) {
+  sendTemplate(to: string, options: SendTemplateOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -152,36 +206,45 @@ export class MessagesModule {
     to: string,
     type: "image" | "video" | "audio" | "document" | "sticker",
     media: MediaRef,
-    opts?: { phoneNumberId?: string; replyToMessageId?: string },
+    opts?: SendOptions,
   ) {
+    if (!media.link && !media.mediaId) {
+      return Promise.resolve({
+        data: null,
+        error: new WhatsappApiError({ message: `send${type}: provide either \`link\` or \`mediaId\`.`, type: "ValidationError" }),
+        status: 0,
+        statusText: "",
+        raw: null,
+      } as WhatsappResponse<SendMessageResult>);
+    }
     const mediaObj: Record<string, unknown> = media.link ? { link: media.link } : { id: media.mediaId };
-    if (media.caption) mediaObj.caption = media.caption;
-    if (media.filename) mediaObj.filename = media.filename;
+    if (media.caption && (type === "image" || type === "video" || type === "document")) mediaObj.caption = media.caption;
+    if (media.filename && type === "document") mediaObj.filename = media.filename;
 
     return this.send({ to, type, [type]: mediaObj }, opts);
   }
 
-  sendImage(to: string, media: MediaRef, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendImage(to: string, media: MediaRef, opts?: SendOptions) {
     return this.sendMedia(to, "image", media, opts);
   }
 
-  sendVideo(to: string, media: MediaRef, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendVideo(to: string, media: MediaRef, opts?: SendOptions) {
     return this.sendMedia(to, "video", media, opts);
   }
 
-  sendAudio(to: string, media: MediaRef, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendAudio(to: string, media: MediaRef, opts?: SendOptions) {
     return this.sendMedia(to, "audio", media, opts);
   }
 
-  sendDocument(to: string, media: MediaRef, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendDocument(to: string, media: MediaRef, opts?: SendOptions) {
     return this.sendMedia(to, "document", media, opts);
   }
 
-  sendSticker(to: string, media: MediaRef, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendSticker(to: string, media: MediaRef, opts?: SendOptions) {
     return this.sendMedia(to, "sticker", media, opts);
   }
 
-  sendLocation(to: string, location: LocationMessageOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendLocation(to: string, location: LocationMessageOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -198,7 +261,7 @@ export class MessagesModule {
   }
 
   /** Sends a body text + "Send location" button, prompting the user to share their current location. */
-  sendLocationRequest(to: string, options: SendLocationRequestOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendLocationRequest(to: string, options: SendLocationRequestOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -213,7 +276,7 @@ export class MessagesModule {
     );
   }
 
-  sendContacts(to: string, contacts: ContactMessageEntry[], opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendContacts(to: string, contacts: ContactMessageEntry[], opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -232,7 +295,7 @@ export class MessagesModule {
     );
   }
 
-  sendInteractive(to: string, options: SendInteractiveOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendInteractive(to: string, options: SendInteractiveOptions, opts?: SendOptions) {
     let interactive: Record<string, unknown>;
 
     if (options.type === "button") {
@@ -270,7 +333,7 @@ export class MessagesModule {
     return this.send({ to, type: "interactive", interactive }, opts);
   }
 
-  sendFlow(to: string, options: SendFlowOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendFlow(to: string, options: SendFlowOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -286,8 +349,10 @@ export class MessagesModule {
               flow_message_version: "3",
               flow_id: options.flowId,
               flow_cta: options.cta,
-              flow_action: options.flowActionPayload ? "navigate" : "navigate",
+              flow_action: options.flowAction ?? "navigate",
               flow_action_payload: options.flowActionPayload,
+              flow_token: options.flowToken,
+              mode: options.mode,
             },
           },
         },
@@ -296,7 +361,7 @@ export class MessagesModule {
     );
   }
 
-  sendReaction(to: string, options: ReactionOptions, opts?: { phoneNumberId?: string }) {
+  sendReaction(to: string, options: ReactionOptions, opts?: SendOptions) {
     return this.send(
       { to, type: "reaction", reaction: { message_id: options.messageId, emoji: options.emoji } },
       opts,
@@ -304,7 +369,7 @@ export class MessagesModule {
   }
 
   /** Sends a single product from a catalog (interactive "product" message). */
-  sendProduct(to: string, options: SendProductOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendProduct(to: string, options: SendProductOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -324,7 +389,7 @@ export class MessagesModule {
   }
 
   /** Sends up to 30 products across up to 10 sections from a catalog (multi-product message). */
-  sendProductList(to: string, options: SendProductListOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendProductList(to: string, options: SendProductListOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -348,7 +413,7 @@ export class MessagesModule {
   }
 
   /** Sends the entire connected catalog for the customer to browse (interactive "catalog_message"). */
-  sendCatalog(to: string, options: SendCatalogOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendCatalog(to: string, options: SendCatalogOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -370,7 +435,7 @@ export class MessagesModule {
   }
 
   /** Sends 2–10 products from a catalog as a horizontally scrollable carousel (interactive "carousel" message, card type "product"). */
-  sendProductCarousel(to: string, options: SendProductCarouselOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendProductCarousel(to: string, options: SendProductCarouselOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -392,7 +457,7 @@ export class MessagesModule {
   }
 
   /** Sends 2–10 image/video cards, each with a URL button or quick-reply button(s) (interactive "carousel" message, card type "cta_url" | "button"). */
-  sendMediaCarousel(to: string, options: SendMediaCarouselOptions, opts?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  sendMediaCarousel(to: string, options: SendMediaCarouselOptions, opts?: SendOptions) {
     return this.send(
       {
         to,
@@ -434,18 +499,33 @@ export class MessagesModule {
     );
   }
 
-  async markAsRead(messageId: string, opts?: { phoneNumberId?: string }): Promise<WhatsappResponse<{ success: boolean }>> {
+  /**
+   * Marks an inbound message as read. Pass `typingIndicator: true` to also show the
+   * "typing…" indicator, which WhatsApp clears after ~25s or when you send a reply.
+   * For group messages, each message must be marked separately.
+   */
+  async markAsRead(
+    messageId: string,
+    opts?: { phoneNumberId?: string; typingIndicator?: boolean },
+  ): Promise<WhatsappResponse<{ success: boolean }>> {
     const phoneNumberId = opts?.phoneNumberId ?? this.defaultPhoneNumberId;
-    const res = await this.http.request<{ success: boolean }>({
+    const body: Record<string, unknown> = { messaging_product: "whatsapp", status: "read", message_id: messageId };
+    if (opts?.typingIndicator) body.typing_indicator = { type: "text" };
+    return this.http.request<{ success: boolean }>({
       method: "POST",
       path: `/${phoneNumberId}/messages`,
-      body: { messaging_product: "whatsapp", status: "read", message_id: messageId },
+      body,
+      retryUnsafe: true, // idempotent: re-marking a message read is harmless
     });
-    return res;
+  }
+
+  /** Marks the message as read and shows the typing indicator. Shorthand for `markAsRead(id, { typingIndicator: true })`. */
+  showTyping(messageId: string, opts?: { phoneNumberId?: string }) {
+    return this.markAsRead(messageId, { ...opts, typingIndicator: true });
   }
 
   /** Convenience: reply to a specific inbound message with a text body (sets `context.message_id`). */
-  reply(to: string, messageId: string, options: TextMessageOptions, opts?: { phoneNumberId?: string }) {
+  reply(to: string, messageId: string, options: TextMessageOptions, opts?: SendOptions) {
     return this.sendText(to, options, { ...opts, replyToMessageId: messageId });
   }
 }

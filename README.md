@@ -284,6 +284,35 @@ See [`src/modules/`](./src/modules) for the full source.
 
 ---
 
+## 📞 Typing indicator, BSUIDs, Marketing Messages, Calling & Groups
+
+```ts
+// Typing indicator (also marks the message as read; clears after ~25s or on reply)
+await whatsapp.messages.showTyping(msg.id);
+
+// Reply to whoever sent it: phone number, or BSUID if the user hides their number
+await whatsapp.messages.sendText(msg.sender, { body: "Hi!" });
+
+// Marketing Messages API (POST /{phone}/marketing_messages)
+await whatsapp.messages.sendMarketingTemplate("15551234567", {
+  name: "summer_sale",
+  language: "en_US",
+  productPolicy: "STRICT",
+});
+
+// Calling API
+await whatsapp.messages.sendCallPermissionRequest(msg.sender, { bodyText: "May we call you?" });
+const perm = await whatsapp.calls.getPermission(msg.sender);
+await whatsapp.calls.accept(callId, { sdpType: "answer", sdp });
+
+// Groups API (members join via invite link)
+await whatsapp.groups.create({ subject: "VIP customers" });
+const link = await whatsapp.groups.getInviteLink(groupId);
+await whatsapp.messages.sendText(groupId, { body: "Hello group" }, { recipientType: "group" });
+```
+
+Webhook events `call` and `group_update` are emitted for the `calls` and `group_*` fields.
+
 ## 🪝 Webhooks
 
 ### Manual style
@@ -305,7 +334,7 @@ app.post(
       return res.sendStatus(401);
     }
 
-    const events = whatsapp.webhooks.parse(req.body);
+    const events = whatsapp.webhooks.parse(JSON.parse(req.body.toString()));
 
     for (const event of events) {
       if (
@@ -313,7 +342,7 @@ app.post(
         event.messageType === "text"
       ) {
         whatsapp.messages.sendText(
-          event.from,
+          event.sender,
           {
             body: `Echo: ${event.text.body}`,
           }

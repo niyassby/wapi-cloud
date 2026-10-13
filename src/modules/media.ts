@@ -55,7 +55,7 @@ export class MediaModule {
     }
 
     try {
-      const res = await fetch(meta.data.url, { headers: { Authorization: this.http.getAuthHeader() } });
+      const res = await this.http.fetchBinary(meta.data.url);
       if (!res.ok) {
         return {
           data: null,

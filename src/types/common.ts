@@ -33,7 +33,7 @@ export interface WhatsappConfig {
   appSecret?: string;
   /** Meta Business Manager ID — required only for `whatsapp.catalogs.list()`. Distinct from `businessAccountId` (the WABA ID). */
   businessId?: string;
-  /** Graph API version, e.g. "v21.0". Defaults to a pinned recent stable version. */
+  /** Graph API version, e.g. "v25.0". Defaults to a pinned recent stable version. */
   apiVersion?: string;
   /** Override the Graph API base URL (useful for testing against a mock server). */
   baseUrl?: string;

@@ -11,7 +11,11 @@ export function verifyHandshake(params: {
   challenge: string | undefined;
   expectedToken: string;
 }): string {
-  if (params.mode !== "subscribe" || params.token !== params.expectedToken) {
+  const tokenOk =
+    typeof params.token === "string" &&
+    params.token.length === params.expectedToken.length &&
+    timingSafeEqual(Buffer.from(params.token), Buffer.from(params.expectedToken));
+  if (params.mode !== "subscribe" || !tokenOk) {
     throw new Error("Webhook verification failed: mode or verify token mismatch.");
   }
   if (!params.challenge) {
@@ -32,6 +36,7 @@ export function verifySignature(params: {
   appSecret: string;
 }): boolean {
   if (!params.signatureHeader) return false;
+  if (typeof params.payload !== "string" && !Buffer.isBuffer(params.payload)) return false;
 
   const [scheme, providedSig] = params.signatureHeader.split("=");
   if (scheme !== "sha256" || !providedSig) return false;

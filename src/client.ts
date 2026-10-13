@@ -14,6 +14,8 @@ import { CatalogsModule } from "./modules/catalogs.js";
 import { ProductsModule } from "./modules/products.js";
 import { CommerceSettingsModule } from "./modules/commerceSettings.js";
 import { EmbeddedSignupModule } from "./modules/embeddedSignup.js";
+import { CallsModule } from "./modules/calls.js";
+import { GroupsModule } from "./modules/groups.js";
 import { WebhooksModule } from "./webhooks/index.js";
 import type { TextMessageOptions, SendTemplateOptions } from "./types/messages.js";
 import type { SendMessageResult } from "./types/messages.js";
@@ -35,6 +37,8 @@ export class Whatsapp {
   readonly products: ProductsModule;
   readonly commerceSettings: CommerceSettingsModule;
   readonly embeddedSignup: EmbeddedSignupModule;
+  readonly calls: CallsModule;
+  readonly groups: GroupsModule;
   readonly webhooks: WebhooksModule;
 
   constructor(config: WhatsappConfig) {
@@ -57,6 +61,8 @@ export class Whatsapp {
     this.products = new ProductsModule(this.http);
     this.commerceSettings = new CommerceSettingsModule(this.http, config.phoneNumberId);
     this.embeddedSignup = new EmbeddedSignupModule(this.http, config.appId, config.appSecret);
+    this.calls = new CallsModule(this.http, config.phoneNumberId);
+    this.groups = new GroupsModule(this.http, config.phoneNumberId);
     this.webhooks = new WebhooksModule(config.appSecret);
   }
 

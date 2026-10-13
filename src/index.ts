@@ -34,8 +34,11 @@ export type {
   SendCarouselTemplateOptions,
   TemplateCarouselCard,
   TemplateCarouselCardComponent,
+  SendOptions,
+  SendMarketingTemplateOptions,
+  SendCallPermissionRequestOptions,
 } from "./types/messages.js";
-export { templateFlowButton } from "./types/messages.js";
+export { templateFlowButton, isBsuid } from "./types/messages.js";
 
 export type {
   WhatsappTemplate,
@@ -52,6 +55,14 @@ export type {
   CarouselCardComponentDefinition,
 } from "./types/templates.js";
 
+export type { CallSession, CallingSettings, CallPermissionState } from "./modules/calls.js";
+export type {
+  CreateGroupInput,
+  WhatsappGroup,
+  GroupField,
+  GroupJoinApprovalMode,
+  GroupJoinRequest,
+} from "./modules/groups.js";
 export type { MediaMetadata } from "./modules/media.js";
 export type { ContactCheckResult } from "./modules/contacts.js";
 export type { WhatsappPhoneNumber } from "./modules/phoneNumbers.js";
@@ -81,4 +92,9 @@ export type {
   MessageStatusEvent,
   TemplateStatusUpdateEvent,
   AccountAlertEvent,
+  UnknownFieldEvent,
+  CallEvent,
+  GroupUpdateEvent,
+  InboundMessageBase,
+  InteractiveReply,
 } from "./webhooks/types.js";

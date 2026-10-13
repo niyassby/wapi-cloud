@@ -22,7 +22,7 @@ whatsapp.webhooks.on("message", async (msg) => {
 
   await whatsapp.messages.markAsRead(msg.id);
 
-  const { error } = await whatsapp.messages.reply(msg.from, msg.id, {
+  const { error } = await whatsapp.messages.reply(msg.sender, msg.id, {
     body: `Echo: ${msg.text.body}`,
   });
 

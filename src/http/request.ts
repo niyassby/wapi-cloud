@@ -1,7 +1,24 @@
 import { WhatsappApiError, describeErrorCode } from "./errors.js";
 import type { WhatsappConfig, WhatsappResponse } from "../types/common.js";
 
-const DEFAULT_API_VERSION = "v21.0";
+export const DEFAULT_API_VERSION = "v25.0";
+
+/** Graph error codes that signal throttling; Graph often returns these with HTTP 400/403. */
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613, 80007, 130429, 131056]);
+const MAX_RETRY_AFTER_MS = 30000;
+const SENSITIVE_PARAMS = ["client_secret", "code", "access_token", "fb_exchange_token"];
+
+function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    for (const key of SENSITIVE_PARAMS) {
+      if (u.searchParams.has(key)) u.searchParams.set(key, "REDACTED");
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 const DEFAULT_BASE_URL = "https://graph.facebook.com";
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -25,6 +42,12 @@ export interface RequestOptions {
   isFormData?: boolean;
   /** Override the access token for this single call (rarely needed). */
   accessTokenOverride?: string;
+  /**
+   * POST requests are only retried on rate-limit responses by default, because retrying
+   * after a timeout or 5xx can deliver a message twice (Graph has no idempotency key).
+   * Set true to also retry POSTs on network errors, timeouts and 5xx.
+   */
+  retryUnsafe?: boolean;
 }
 
 export class HttpClient {
@@ -58,6 +81,23 @@ export class HttpClient {
     return `Bearer ${this.accessToken}`;
   }
 
+  /**
+   * Authenticated GET of an absolute URL (e.g. a temporary media download URL), going through
+   * the configured `fetch`, the request timeout and the onRequest/onResponse hooks.
+   */
+  async fetchBinary(url: string): Promise<Response> {
+    this.onRequest?.({ method: "GET", url: redactUrl(url) });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const res = await this.fetchImpl(url, { method: "GET", headers: { Authorization: `Bearer ${this.accessToken}` }, signal: controller.signal });
+      this.onResponse?.({ method: "GET", url: redactUrl(url), status: res.status });
+      return res;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   getRateLimitStatus(): string | null {
     return this.lastRateLimitHeader;
   }
@@ -83,7 +123,7 @@ export class HttpClient {
 
     while (attempt <= this.maxRetries) {
       attempt++;
-      this.onRequest?.({ method, url });
+      this.onRequest?.({ method, url: redactUrl(url) });
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -110,24 +150,29 @@ export class HttpClient {
           signal: controller.signal,
         });
 
-        clearTimeout(timeout);
-        this.onResponse?.({ method, url, status: res.status });
+        this.onResponse?.({ method, url: redactUrl(url), status: res.status });
 
         const rateLimitHeader = res.headers.get("x-business-use-case-usage");
         if (rateLimitHeader) this.lastRateLimitHeader = rateLimitHeader;
 
-        const isRetryableStatus = res.status === 429 || res.status >= 500;
-
-        // Try to parse JSON regardless of status — Graph API errors are JSON too.
+        // Read the body before clearing the timeout so a stalled body is also aborted.
         let json: unknown = null;
+        let parseFailed = false;
         const text = await res.text();
+        clearTimeout(timeout);
         if (text) {
           try {
             json = JSON.parse(text);
           } catch {
-            json = null;
+            parseFailed = true;
           }
         }
+
+        const errBodyEarly = json as GraphErrorBody | null;
+        const graphCode = errBodyEarly?.error?.code ?? 0;
+        const isRateLimited = res.status === 429 || RATE_LIMIT_CODES.has(graphCode);
+        const isSafeMethod = method !== "POST" || opts.retryUnsafe === true;
+        const isRetryableStatus = isRateLimited || (res.status >= 500 && isSafeMethod);
 
         if (!res.ok) {
           if (isRetryableStatus && attempt <= this.maxRetries) {
@@ -158,8 +203,23 @@ export class HttpClient {
           };
         }
 
+        if (parseFailed) {
+          return {
+            data: null,
+            error: new WhatsappApiError({
+              message: `Received a ${res.status} response that was not valid JSON`,
+              type: "InvalidResponse",
+              httpStatus: res.status,
+              raw: text,
+            }),
+            status: res.status,
+            statusText: res.statusText,
+            raw: text,
+          };
+        }
+
         return {
-          data: json as T,
+          data: (json ?? {}) as T,
           error: null,
           status: res.status,
           statusText: res.statusText,
@@ -170,7 +230,7 @@ export class HttpClient {
         lastNetworkError = err;
         const isAbort = err instanceof Error && err.name === "AbortError";
 
-        if (attempt <= this.maxRetries) {
+        if (attempt <= this.maxRetries && (method !== "POST" || opts.retryUnsafe === true)) {
           await this.backoff(attempt, null);
           continue;
         }
@@ -206,7 +266,12 @@ export class HttpClient {
   }
 
   private async backoff(attempt: number, retryAfterHeader: string | null) {
-    const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : undefined;
+    let retryAfterMs: number | undefined;
+    if (retryAfterHeader) {
+      const secs = Number(retryAfterHeader);
+      const ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(retryAfterHeader) - Date.now();
+      if (Number.isFinite(ms) && ms >= 0) retryAfterMs = Math.min(ms, MAX_RETRY_AFTER_MS);
+    }
     const jitter = Math.random() * 100;
     const delay = retryAfterMs ?? Math.min(1000 * 2 ** (attempt - 1), 8000) + jitter;
     await new Promise((resolve) => setTimeout(resolve, delay));
